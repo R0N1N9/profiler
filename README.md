@@ -24,7 +24,31 @@ $ python -m profiler ada --html out/ada.html
       evidence: username match only — may be a different person
 ```
 
-## Install and run
+## On your phone
+
+`docs/` is the same tool as a web app that runs entirely in the browser: no server, no
+install, and lookups go straight from your phone to each platform's public API.
+
+1. Merge this branch into `main`.
+2. On GitHub, open **Settings → Pages**, set **Source** to *Deploy from a branch*, and pick
+   `main` and the `/docs` folder. (Pages on a private repository needs a paid GitHub plan;
+   otherwise make the repository public or host `docs/` on any static host such as Netlify
+   or Cloudflare Pages.)
+3. Open `https://<your-user>.github.io/profiler/` on your phone, then
+   **Share → Add to Home Screen** (iPhone) or **⋮ → Install app** (Android). It opens
+   full-screen like a native app.
+
+`…/profiler/?q=HANDLE` runs a lookup straight from a link. Each report can be shared or
+saved as JSON. Under *More options* you can add known accounts, an email, a GitHub token
+(stored only in that browser), and the strict / no-pivot switches.
+
+Browsers only allow a request when the site permits it (CORS). GitHub, GitLab, Hacker News,
+Bluesky, Mastodon and Gravatar do; if a source refuses, the report lists it under
+*Sources that could not be read*, and the command-line version can still reach it.
+
+To try it locally: `python -m http.server -d docs` and open http://localhost:8000.
+
+## Command line
 
 Python 3.11+, no dependencies.
 
@@ -87,5 +111,6 @@ GDPR even when the data is public).
 ## Tests
 
 ```
-python -m unittest discover -s tests
+python -m unittest discover -s tests   # Python version
+node --test tests/test_web.mjs         # web version (same fixtures)
 ```

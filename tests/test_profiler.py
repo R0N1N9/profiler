@@ -1,27 +1,14 @@
+import json
 import unittest
+from pathlib import Path
 
 from profiler import render
 from profiler.engine import build
 from profiler.links import classify, extract_urls
 
 GH = "https://api.github.com/users/ada"
-PAGES = {
-    GH: {"login": "ada", "html_url": "https://github.com/ada", "name": "Ada Example",
-         "bio": "<script>alert(1)</script> compilers", "location": "London", "company": "@acme",
-         "blog": "ada.example", "twitter_username": "ada_tw", "created_at": "2012-03-04T05:06:07Z",
-         "followers": 10, "public_repos": 2, "avatar_url": "javascript:alert(1)"},
-    GH + "/social_accounts": [{"provider": "mastodon", "url": "https://fosstodon.org/@adae"}],
-    GH + "/repos?per_page=100&sort=pushed": [
-        {"name": "calc", "html_url": "https://github.com/ada/calc", "language": "Rust",
-         "stargazers_count": 7, "topics": ["compilers"], "description": "a calculator"},
-        {"name": "forked", "html_url": "https://github.com/ada/forked", "language": "Go", "fork": True}],
-    GH + "/events/public?per_page=100": [{"created_at": f"2026-01-05T{h:02d}:00:00Z"} for h in range(12)],
-    "https://fosstodon.org/api/v1/accounts/lookup?acct=adae": {
-        "id": "7", "username": "adae", "url": "https://fosstodon.org/@adae", "display_name": "Ada Example",
-        "note": "<p>hi</p>", "created_at": "2019-01-01T00:00:00Z",
-        "fields": [{"name": "code", "value": '<a href="https://github.com/ada">github.com/ada</a>'}]},
-    "https://hacker-news.firebaseio.com/v0/user/ada.json": {"id": "ada", "karma": 5, "created": 1300000000},
-}
+PAGES = json.loads((Path(__file__).parent / "fixtures.json").read_text())
+PAGES[GH + "/events/public?per_page=100"] = [{"created_at": f"2026-01-05T{h:02d}:00:00Z"} for h in range(12)]
 
 
 def fake_fetch(url):
