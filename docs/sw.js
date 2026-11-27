@@ -1,6 +1,7 @@
 // Caches the app shell so it opens offline; API lookups always go to the network.
-const CACHE = "profiler-v1";
-const SHELL = ["./", "index.html", "profiler.js", "app.js", "manifest.webmanifest", "icon.svg"];
+const CACHE = "profiler-v2";
+const SHELL = ["./", "index.html", "style.css", "app.js", "lib/engine.js", "lib/http.js", "lib/links.js",
+  "lib/sources.js", "lib/presence.js", "lib/audit.js", "lib/render.js", "manifest.webmanifest", "icon.svg"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(SHELL)).then(() => self.skipWaiting()));

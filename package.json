@@ -1,0 +1,12 @@
+{
+  "name": "profiler",
+  "version": "0.3.0",
+  "description": "Build a dossier from what a person publishes on their public accounts",
+  "type": "module",
+  "bin": { "profiler": "cli/profiler.mjs" },
+  "scripts": {
+    "test": "node --test tests/test_web.mjs",
+    "serve": "python3 -m http.server -d docs 8000"
+  },
+  "engines": { "node": ">=20" }
+}

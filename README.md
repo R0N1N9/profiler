@@ -1,116 +1,135 @@
 # profiler
 
-Builds a dossier on a person from what they have published on their own public
-accounts, then shows it as a terminal card, an HTML report, or JSON.
+Builds a dossier on a person from what they publish on their own public accounts, as a
+phone-friendly web app and a command-line tool that share one engine.
 
-Give it a username. It looks that name up on each supported platform, follows the
-links those profiles publish to find the person's other accounts, and grades every
-account by how well the others corroborate it.
+Give it a username. It:
 
-```
-$ python -m profiler ada --html out/ada.html
-
-┌──────────────────────────────────────────────────────────────
-│ ADA EXAMPLE   query: ada
-│ writes mostly Rust; lists acme as employer; based in London; online since 2012
-│ 3 accounts · generated 2026-11-27 13:19 UTC
-└──────────────────────────────────────────────────────────────
-
-── ACCOUNTS ──────────────────────────────────────────────────
-  github         ada  [confirmed]
-      evidence: links to and from the mastodon profile; same name as mastodon
-  mastodon       adae@fosstodon.org  [confirmed]
-  hackernews     ada  [unverified]
-      evidence: username match only — may be a different person
-```
+1. **looks the name up on 17 platforms** and reads each public profile in detail;
+2. **follows the links people publish** (bios, profile READMEs, link-in-bio pages, personal
+   websites, Keybase proofs) to find their accounts under other names;
+3. **grades every account** by how well the others corroborate it, so a stranger with the
+   same username isn't presented as the same person;
+4. **checks 600+ more sites** for an account with that username (existence only);
+5. optionally **tries username variations** and runs a **footprint audit** of what is exposed.
 
 ## On your phone
 
-`docs/` is the same tool as a web app that runs entirely in the browser: no server, no
-install, and lookups go straight from your phone to each platform's public API.
+`docs/` is a static web app: nothing to install, no server of yours involved.
 
-1. Merge this branch into `main`.
-2. On GitHub, open **Settings → Pages**, set **Source** to *Deploy from a branch*, and pick
-   `main` and the `/docs` folder. (Pages on a private repository needs a paid GitHub plan;
-   otherwise make the repository public or host `docs/` on any static host such as Netlify
-   or Cloudflare Pages.)
-3. Open `https://<your-user>.github.io/profiler/` on your phone, then
-   **Share → Add to Home Screen** (iPhone) or **⋮ → Install app** (Android). It opens
-   full-screen like a native app.
+1. GitHub → **Settings → Pages** → *Deploy from a branch* → `main`, folder **`/docs`**.
+2. Open `https://<user>.github.io/profiler/` and **Add to Home Screen** (iPhone: Share menu;
+   Android: ⋮ → Install app).
+3. Set up the relay below. Without it, only sites that allow browser requests can be read.
 
-`…/profiler/?q=HANDLE` runs a lookup straight from a link. Each report can be shared or
-saved as JSON. Under *More options* you can add known accounts, an email, a GitHub token
-(stored only in that browser), and the strict / no-pivot switches.
+`…/profiler/?q=HANDLE` runs a lookup straight from a link. Reports can be shared, or saved
+as JSON or a standalone HTML page.
 
-Browsers only allow a request when the site permits it (CORS). GitHub, GitLab, Hacker News,
-Bluesky, Mastodon and Gravatar do; if a source refuses, the report lists it under
-*Sources that could not be read*, and the command-line version can still reach it.
+### The relay (needed for full results on a phone)
 
-To try it locally: `python -m http.server -d docs` and open http://localhost:8000.
+Browsers refuse to read most websites from another site (CORS). The relay is a tiny
+Cloudflare Worker you own that fetches public pages for the app. It's free (100,000
+requests a day; a full scan uses about 20).
+
+**From the dashboard (no tools needed):**
+1. Sign up at dash.cloudflare.com → **Workers & Pages → Create → Create Worker**, name it
+   `profiler-relay`, **Deploy**, then **Edit code**.
+2. Replace the code with the contents of [`relay/worker.js`](relay/worker.js) and **Deploy**.
+3. In the worker's **Settings → Variables and Secrets**, add a **Secret** named
+   `RELAY_TOKEN` with a long random value (a password manager can generate one).
+4. In the app, open **More options** and fill in **Relay URL**
+   (`https://profiler-relay.<you>.workers.dev`) and **Relay token**.
+
+**Or with Wrangler:** `cd relay && npx wrangler deploy && npx wrangler secret put RELAY_TOKEN`.
+
+The relay only fetches public `http(s)` addresses (no IPs, localhost or internal names),
+refuses requests without your token, drops cookies, and only forwards a GitHub token to
+GitHub. The app first tries each site directly and uses the relay only for sites that
+block the browser.
 
 ## Command line
 
-Python 3.11+, no dependencies.
+Node 20 or later, no dependencies. The command line reaches every site directly, so it
+needs no relay.
 
 ```
-python -m profiler HANDLE                       # or: pip install -e . && profiler HANDLE
-python -m profiler HANDLE --html report.html --json report.json
-python -m profiler -a github=someone -a mastodon=someone@mastodon.social
-python -m profiler --email someone@example.com  # public Gravatar profile
-python -m profiler HANDLE --strict              # drop username-only matches
-python -m profiler HANDLE --only github,gitlab --no-pivot
+node cli/profiler.mjs HANDLE                       # or: npm link && profiler HANDLE
+node cli/profiler.mjs HANDLE --audit --variants --html report.html
+node cli/profiler.mjs -a mastodon=someone@mastodon.social -a stackoverflow=1234567
+node cli/profiler.mjs --email someone@example.com  # public Gravatar profile
+node cli/profiler.mjs HANDLE --strict --no-sites   # corroborated accounts only, skip the 600+ check
+node cli/profiler.mjs --help
 ```
 
-Set `GITHUB_TOKEN` to raise GitHub's limit from 60 requests an hour (a lookup uses five).
+`GITHUB_TOKEN` raises GitHub's limit from 60 requests an hour to 5,000. The site list is
+cached in `~/.cache/profiler` for a week.
 
 ## Sources
 
 | Platform | Looked up by | What is read |
 | --- | --- | --- |
-| GitHub | username | profile, own repositories (languages, topics, most starred), recent public events, organisations |
-| GitLab | username | profile |
-| Hacker News | username | profile, recent submissions and comments (timestamps, top stories) |
-| Bluesky | handle | profile, recent post timestamps |
-| Keybase | username | profile and its cryptographically verified identity proofs |
-| DEV | username | profile |
-| npm | username | maintained packages |
+| GitHub | username | profile, repositories (languages, topics, top projects), activity, organisations, profile README links |
+| GitLab, Codeberg | username | profile, website, linked accounts; Codeberg repositories |
+| npm, PyPI, crates.io | username | published packages |
 | Docker Hub | username | profile |
-| Mastodon | `user@instance`, or a link from another profile | profile, recent post timestamps |
+| Hacker News | username | profile, karma, recent posts and comments, top stories |
+| Reddit | username | profile, karma, communities they post in, activity, top posts |
+| Lobsters, DEV | username | profile, homepage, linked GitHub/Twitter/Mastodon |
+| Keybase | username | profile and cryptographically verified identity proofs |
+| Bluesky | handle | profile, post activity; a custom-domain handle counts as their website |
+| Lichess, Chess.com | username | profile, games played, account age |
+| Medium | username | name, recent stories and tags |
+| Substack | handle | profile and publications |
+| Mastodon | `user@instance` or a link | profile, link fields (with Mastodon's own link verification), activity |
+| Stack Overflow | numeric id or a link | reputation, top tags, location, website |
+| Personal websites | links from profiles, or `website=domain` | `rel="me"` links, h-card and schema.org Person details |
+| Linktree, bio.link, about.me, Beacons | links from profiles | every link listed |
 | Gravatar | `--email` | profile and verified accounts |
+| 615 more sites | username | existence only, via [WhatsMyName](https://github.com/WebBreacher/WhatsMyName) (CC BY-SA 4.0) |
 
-Every source is the platform's public, unauthenticated API. Adding one is a function in
-`profiler/sources.py` that returns an `Account`, plus a URL pattern in `profiler/links.py`
-if profiles elsewhere link to it.
+Adding a source is one function in `docs/lib/sources.js`, plus a URL pattern in
+`docs/lib/links.js` if other profiles link to it.
 
 ## Confidence
 
-The same username on two sites is often two different people, so every account carries a
-grade and the evidence for it:
-
 | Grade | Meaning |
 | --- | --- |
-| asserted | you supplied this exact account with `--account` or `--email` |
-| confirmed | a Keybase proof, or the two profiles link to each other |
+| asserted | you supplied this exact account |
+| confirmed | a Keybase proof or Mastodon-verified link, or the two profiles link to each other |
 | likely | one profile links to the other, or same name plus a shared website, location or employer |
 | possible | same name, or same personal website |
-| unverified | username match only |
+| unverified | username match only, or found by guessing a variation |
 
-The headline is written only from corroborated accounts. Facts from unverified accounts
-are listed but flagged, and `--strict` removes them.
+The headline, avatar and activity chart use only corroborated accounts. Facts from
+unverified accounts are listed but flagged, and *Hide username-only matches* / `--strict`
+removes them.
+
+## Footprint audit
+
+For scanning yourself: flags a public email, your name tied to your username, a stated
+location or employer, accounts that link to each other, posting times that reveal your
+sleep hours, a username reused on many sites, and dormant accounts. Each finding links to
+the settings page where you can change it.
 
 ## Scope
 
-The tool reports what account owners chose to publish on public profiles. It does not
-use people-search sites, data brokers, breach data or logged-in scraping; it does not
-look for home addresses, phone numbers or relatives; and it does not guess at traits a
-person has not stated. Use it for things like auditing your own footprint, checking who
-is behind a contributor or vendor account, or authorised security assessments, and
-follow the privacy law that applies to you (compiling data on EU residents is covered by
-GDPR even when the data is public).
+The tool reads what account owners chose to publish on public profiles. It does not use
+people-search sites, data brokers, breach data or logged-in scraping; it does not look for
+home addresses, phone numbers or relatives; it does not guess at traits a person hasn't
+stated; and the 600+ site check skips adult, dating, political and health sites, where
+finding someone's account would itself reveal something sensitive. Use it to audit your
+own footprint, check who is behind a contributor or vendor account, or for authorised
+security work, and follow the privacy law that applies to you (compiling data on EU
+residents is covered by GDPR even when the data is public).
 
-## Tests
+## Development
 
 ```
-python -m unittest discover -s tests   # Python version
-node --test tests/test_web.mjs         # web version (same fixtures)
+npm test                      # engine, sources, presence check, audit, relay
+npm run serve                 # app at http://localhost:8000
 ```
+
+`docs/lib/` holds the engine (`engine.js`), sources (`sources.js`), link recognition
+(`links.js`), the 600+ site check (`presence.js`), the audit (`audit.js`), report rendering
+(`render.js`) and the network layer (`http.js`). `docs/app.js` is the web UI,
+`cli/profiler.mjs` the command line, `relay/worker.js` the relay.
